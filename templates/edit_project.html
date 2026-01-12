@@ -1,0 +1,12 @@
+<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
+<script src="{{ url_for('static', filename='main.js') }}"></script>
+
+
+<h1>Edit Project</h1>
+<form method="POST">
+    <input type="text" name="name" value="{{ project.name }}" required><br>
+    <textarea name="description">{{ project.description }}</textarea><br>
+    <input type="date" name="deadline" value="{{ project.deadline }}"><br>
+    <button type="submit">Update Project</button>
+</form>
+<a href="{{ url_for('projects') }}">Back to Projects</a>

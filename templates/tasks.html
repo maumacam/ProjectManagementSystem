@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tasks</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
+    <script src="{{ url_for('static', filename='main.js') }}"></script>
+</head>
+<body>
+<div class="container">
+    <h1>Tasks</h1>
+    <div style="margin-bottom:15px;">
+        <a href="{{ url_for('new_task', project_id=project_id) }}"><button>Add New Task</button></a>
+        <a href="{{ url_for('projects') }}"><button>Back to Projects</button></a>
+    </div>
+    <ul>
+        {% for task in tasks %}
+        <li>
+            <div>
+                <strong>{{ task.title }}</strong> - {{ task.status }} - Assigned: {{ task.assigned_to }} - Deadline: {{ task.deadline }}
+            </div>
+            <div>
+                <a href="{{ url_for('edit_task', task_id=task.id) }}"><button>Edit</button></a>
+                <form method="POST" action="{{ url_for('delete_task', task_id=task.id) }}" style="display:inline;">
+                    <button type="submit">Delete</button>
+                </form>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+</body>
+</html>

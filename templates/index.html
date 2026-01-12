@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Project Management System</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
+    <script src="{{ url_for('static', filename='main.js') }}"></script>
+</head>
+<body>
+<div class="container">
+    <h1>Welcome to Project Management System</h1>
+    <div style="text-align:center; margin-top:20px;">
+        <a href="{{ url_for('signup') }}"><button>Sign Up</button></a>
+        <a href="{{ url_for('login') }}"><button>Login</button></a>
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="{{ url_for('static', filename='main.js') }}"></script>
+</head>
+<body>
+<div class="container">
+    <h1>Welcome {{ username }}!</h1>
+
+    <div style="text-align:center; margin-bottom:15px;">
+        <a href="{{ url_for('new_project') }}"><button>Add New Project</button></a>
+        <a href="{{ url_for('logout') }}"><button>Logout</button></a>
+    </div>
+
+    {% if projects %}
+        <ul>
+        {% for project in projects %}
+            <li>
+                <div>
+                    <strong>{{ project.name }}</strong> - {{ project.description }} - Deadline: {{ project.deadline }}
+                    <br>
+                    Progress: {{ project.progress }}% <progress value="{{ project.progress }}" max="100"></progress>
+                </div>
+                <div>
+                    <button onclick="toggleTasks('tasks-{{ project.id }}')">Show/Hide Tasks</button>
+                    <a href="{{ url_for('edit_project', project_id=project.id) }}"><button>Edit</button></a>
+                    <form method="POST" action="{{ url_for('delete_project', project_id=project.id) }}" style="display:inline;">
+                        <button type="submit">Delete</button>
+                    </form>
+                    <a href="{{ url_for('new_task', project_id=project.id) }}"><button>Add Task</button></a>
+                </div>
+
+                <!-- Task list (collapsed by default) -->
+                <ul id="tasks-{{ project.id }}" style="display:none; margin-top:10px;">
+                    {% for task in project.tasks %}
+                        <li>
+                            <div>
+                                {{ task.title }} - {{ task.status }} - Assigned: {{ task.assigned_to }} - Deadline: {{ task.deadline }}
+                            </div>
+                            <div>
+                                <a href="{{ url_for('edit_task', task_id=task.id) }}"><button>Edit</button></a>
+                                <form method="POST" action="{{ url_for('delete_task', task_id=task.id) }}" style="display:inline;">
+                                    <button type="submit">Delete</button>
+                                </form>
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>No projects yet. Click “Add New Project” to create one.</p>
+    {% endif %}
+</div>
+
+<script>
+function toggleTasks(id) {
+    const el = document.getElementById(id);
+    if (el.style.display === 'none') {
+        el.style.display = 'block';
+    } else {
+        el.style.display = 'none';
+    }
+}
+</script>
+</body>
+</html>
