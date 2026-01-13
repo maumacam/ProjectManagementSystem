@@ -66,23 +66,64 @@ def dashboard():
     if 'user_id' not in session:
         return redirect(url_for('login'))
 
-    # Get all projects for the logged-in user
-    cursor.execute("SELECT * FROM projects WHERE user_id=%s", (session['user_id'],))
+    user_id = session['user_id']
+
+    # ===== DASHBOARD STATS =====
+    cursor.execute("SELECT COUNT(*) AS total_projects FROM projects WHERE user_id=%s", (user_id,))
+    total_projects = cursor.fetchone()['total_projects']
+
+    cursor.execute("""
+        SELECT COUNT(*) AS total_tasks
+        FROM tasks t
+        JOIN projects p ON t.project_id = p.id
+        WHERE p.user_id=%s
+    """, (user_id,))
+    total_tasks = cursor.fetchone()['total_tasks']
+
+    cursor.execute("""
+        SELECT COUNT(*) AS in_progress
+        FROM tasks t
+        JOIN projects p ON t.project_id = p.id
+        WHERE p.user_id=%s AND t.status='In Progress'
+    """, (user_id,))
+    in_progress = cursor.fetchone()['in_progress']
+
+    cursor.execute("""
+        SELECT COUNT(*) AS completed
+        FROM tasks t
+        JOIN projects p ON t.project_id = p.id
+        WHERE p.user_id=%s AND t.status='Done'
+    """, (user_id,))
+    completed = cursor.fetchone()['completed']
+
+    # ===== PROJECTS =====
+    cursor.execute("SELECT * FROM projects WHERE user_id=%s", (user_id,))
     projects = cursor.fetchall()
 
     for project in projects:
-        # Calculate project progress
         cursor.execute("SELECT COUNT(*) AS total FROM tasks WHERE project_id=%s", (project['id'],))
         total = cursor.fetchone()['total']
-        cursor.execute("SELECT COUNT(*) AS done FROM tasks WHERE project_id=%s AND status='Done'", (project['id'],))
+
+        cursor.execute("""
+            SELECT COUNT(*) AS done FROM tasks
+            WHERE project_id=%s AND status='Done'
+        """, (project['id'],))
         done = cursor.fetchone()['done']
+
         project['progress'] = int((done / total) * 100) if total > 0 else 0
 
-        # Fetch tasks for this project
         cursor.execute("SELECT * FROM tasks WHERE project_id=%s", (project['id'],))
         project['tasks'] = cursor.fetchall()
 
-    return render_template('dashboard.html', username=session['username'], projects=projects)
+    return render_template(
+        'dashboard.html',
+        username=session['username'],
+        total_projects=total_projects,
+        total_tasks=total_tasks,
+        in_progress=in_progress,
+        completed=completed,
+        projects=projects
+    )
 
 # Logout
 @app.route('/logout')

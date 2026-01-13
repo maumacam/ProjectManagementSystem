@@ -80,3 +80,20 @@ progress {
     text-align: center;
     margin-bottom: 10px;
 }
+
+.card {
+    background:#f1f5f9;
+    padding:15px;
+    border-radius:10px;
+    text-align:center;
+    font-size:16px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.1);
+}
+
+.project-box {
+    background:#fff;
+    padding:15px;
+    border-radius:10px;
+    margin-bottom:15px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.08);
+}
