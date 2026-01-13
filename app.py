@@ -352,15 +352,15 @@ def edit_task_page(task_id):
 @app.route('/project_progress/<int:project_id>')
 def project_progress(project_id):
     cursor.execute("SELECT COUNT(*) AS total FROM tasks WHERE project_id=%s", (project_id,))
-    total_row = cursor.fetchone()
-    total = total_row['total'] if total_row else 0
+    total = cursor.fetchone()['total']
 
-    cursor.execute("SELECT COUNT(*) AS done_count FROM tasks WHERE project_id=%s AND status='Done'", (project_id,))
-    done_row = cursor.fetchone()
-    done_count = done_row['done_count'] if done_row else 0
+    cursor.execute("SELECT COUNT(*) AS done FROM tasks WHERE project_id=%s AND status='Done'", (project_id,))
+    done = cursor.fetchone()['done']
 
-    progress = int((done_count / total) * 100) if total > 0 else 0
-    return jsonify({'progress': progress})
+    cursor.execute("SELECT COUNT(*) AS in_progress FROM tasks WHERE project_id=%s AND status='In Progress'", (project_id,))
+    in_progress = cursor.fetchone()['in_progress']
+
+    return jsonify({'total': total, 'done': done, 'inProgress': in_progress})
 
 if __name__ == "__main__":
     app.run(debug=True)
