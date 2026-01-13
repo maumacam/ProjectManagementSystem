@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Add New Task</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="container">
+    <h2>Add Task to "{{ project.name }}"</h2>
+
+    <form method="POST" action="{{ url_for('new_task', project_id=project.id) }}">
+        <label>Title:</label><br>
+        <input type="text" name="title" required><br><br>
+
+        <label>Description:</label><br>
+        <textarea name="description"></textarea><br><br>
+
+        <label>Assigned To:</label><br>
+        <input type="text" name="assigned_to" required><br><br>
+
+        <label>Status:</label><br>
+        <select name="status">
+            <option value="To Do">To Do</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Done">Done</option>
+        </select><br><br>
+
+        <label>Deadline:</label><br>
+        <input type="date" name="deadline"><br><br>
+
+        <button type="submit">Add Task</button>
+        <a href="{{ url_for('kanban', project_id=project.id) }}"><button type="button">Cancel</button></a>
+    </form>
+</div>
+</body>
+</html>

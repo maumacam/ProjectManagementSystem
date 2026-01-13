@@ -10,7 +10,6 @@
 <div class="container">
     <h1>Welcome {{ username }}</h1>
 
-    <!-- ===== STATS CARDS ===== -->
     <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:15px; margin-bottom:25px;">
         <div class="card">📁 Projects<br><strong>{{ total_projects }}</strong></div>
         <div class="card">📋 Tasks<br><strong>{{ total_tasks }}</strong></div>
@@ -23,39 +22,29 @@
         <a href="{{ url_for('logout') }}"><button>Logout</button></a>
     </div>
 
-    <!-- ===== PROJECTS ===== -->
     {% for project in projects %}
     <div class="project-box">
         <h3>{{ project.name }}</h3>
         <p>{{ project.description }}</p>
 
-        Progress: {{ project.progress }}%
-        <progress value="{{ project.progress }}" max="100"></progress>
-
-        <div style="margin-top:10px;">
-            <button onclick="toggleTasks('tasks-{{ project.id }}')">View Tasks</button>
-            <a href="{{ url_for('new_task', project_id=project.id) }}"><button>Add Task</button></a>
+        <div style="margin-bottom: 10px;">
+            Progress: {{ project.progress }}%
+            <progress value="{{ project.progress }}" max="100" style="width: 100%;"></progress>
         </div>
 
-        <!-- TASK LIST -->
-        <ul id="tasks-{{ project.id }}" style="display:none; margin-top:10px;">
-            {% for task in project.tasks %}
-            <li>
-                {{ task.title }} - {{ task.status }}
-            </li>
-            {% endfor %}
-        </ul>
+        <div style="margin-top:15px;">
+            <a href="{{ url_for('kanban', project_id=project.id) }}">
+                <button style="padding: 8px 16px;">Open Kanban Board</button>
+            </a>
+            
+            <a href="{{ url_for('new_task', project_id=project.id) }}">
+                <button style="padding: 8px 16px;">Add Task</button>
+            </a>
+        </div>
     </div>
     {% endfor %}
 
 </div>
-
-<script>
-function toggleTasks(id){
-    const el = document.getElementById(id);
-    el.style.display = el.style.display === 'none' ? 'block' : 'none';
-}
-</script>
 
 </body>
 </html>

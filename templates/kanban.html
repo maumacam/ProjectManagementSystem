@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Kanban Board - {{ project.name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* Kanban board grid */
+        .kanban {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        /* Columns */
+        .kanban-column {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 10px;
+            min-height: 300px;
+        }
+
+        .kanban-column h3 {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        /* Task cards */
+        .kanban-task {
+            background: #fff;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+            cursor: grab;
+        }
+
+        .kanban-task:active {
+            cursor: grabbing;
+        }
+
+        /* Header buttons */
+        .top-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>{{ project.name }} — Kanban Board</h2>
+
+    <div class="top-buttons">
+        <a href="{{ url_for('dashboard') }}"><button>← Back to Dashboard</button></a>
+        <a href="{{ url_for('new_task', project_id=project.id) }}"><button>+ Add Task</button></a>
+    </div>
+
+    <div class="kanban">
+        <!-- To Do Column -->
+        <div class="kanban-column" data-status="To Do">
+            <h3>To Do</h3>
+            {% for task in todo %}
+                <div class="kanban-task" draggable="true" data-id="{{ task.id }}">
+                    {{ task.title }}<br>
+                    Assigned: {{ task.assigned_to }}<br>
+                    Deadline: {{ task.deadline }}
+                </div>
+            {% endfor %}
+        </div>
+
+        <!-- In Progress Column -->
+        <div class="kanban-column" data-status="In Progress">
+            <h3>In Progress</h3>
+            {% for task in in_progress %}
+                <div class="kanban-task" draggable="true" data-id="{{ task.id }}">
+                    {{ task.title }}<br>
+                    Assigned: {{ task.assigned_to }}<br>
+                    Deadline: {{ task.deadline }}
+                </div>
+            {% endfor %}
+        </div>
+
+        <!-- Done Column -->
+        <div class="kanban-column" data-status="Done">
+            <h3>Done</h3>
+            {% for task in done %}
+                <div class="kanban-task" draggable="true" data-id="{{ task.id }}">
+                    {{ task.title }}<br>
+                    Assigned: {{ task.assigned_to }}<br>
+                    Deadline: {{ task.deadline }}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- DRAG & DROP JS -->
+<script>
+let draggedTask = null;
+
+document.querySelectorAll('.kanban-task').forEach(task => {
+  task.addEventListener('dragstart', () => {
+    draggedTask = task;
+  });
+});
+
+document.querySelectorAll('.kanban-column').forEach(column => {
+  column.addEventListener('dragover', e => e.preventDefault());
+
+  column.addEventListener('drop', () => {
+    if (!draggedTask) return;
+    const status = column.getAttribute('data-status');
+    column.appendChild(draggedTask);
+
+    fetch('/update_task_status', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        task_id: draggedTask.getAttribute('data-id'),
+        status: status
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+        // Update progress bar in dashboard if it exists
+        const progressBar = document.querySelector(`#progress-${data.project_id}`);
+        if (progressBar) {
+            progressBar.value = data.progress;
+            progressBar.nextElementSibling.textContent = `${data.progress}%`;
+        }
+        draggedTask = null;
+    });
+  });
+});
+</script>
+
+
+</body>
+</html>

@@ -125,6 +125,37 @@ def dashboard():
         projects=projects
     )
 
+@app.route('/kanban/<int:project_id>')
+def kanban(project_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    cursor.execute(
+        "SELECT * FROM projects WHERE id=%s AND user_id=%s",
+        (project_id, session['user_id'])
+    )
+    project = cursor.fetchone()
+
+    if not project:
+        return redirect(url_for('dashboard'))
+
+    cursor.execute("SELECT * FROM tasks WHERE project_id=%s AND status='To Do'", (project_id,))
+    todo = cursor.fetchall()
+
+    cursor.execute("SELECT * FROM tasks WHERE project_id=%s AND status='In Progress'", (project_id,))
+    in_progress = cursor.fetchall()
+
+    cursor.execute("SELECT * FROM tasks WHERE project_id=%s AND status='Done'", (project_id,))
+    done = cursor.fetchall()
+
+    return render_template(
+        'kanban.html',
+        project=project,
+        todo=todo,
+        in_progress=in_progress,
+        done=done
+    )
+
 # Logout
 @app.route('/logout')
 def logout():
@@ -171,25 +202,58 @@ def tasks(project_id):
     return render_template('tasks.html', tasks=tasks, project_id=project_id)
 
 # Add new task
-@app.route('/projects/<int:project_id>/tasks/new', methods=['GET', 'POST'])
+@app.route('/new_task/<int:project_id>', methods=['GET', 'POST'])
 def new_task(project_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
 
+    # Get project info
+    cursor.execute("SELECT * FROM projects WHERE id=%s AND user_id=%s", (project_id, session['user_id']))
+    project = cursor.fetchone()
+    if not project:
+        return redirect(url_for('dashboard'))
+
     if request.method == 'POST':
         title = request.form['title']
-        description = request.form['description']
+        description = request.form.get('description')
         assigned_to = request.form['assigned_to']
         status = request.form['status']
-        deadline = request.form['deadline']
+        deadline = request.form.get('deadline')
 
-        cursor.execute(
-            "INSERT INTO tasks (project_id, title, description, assigned_to, status, deadline) VALUES (%s, %s, %s, %s, %s, %s)",
-            (project_id, title, description, assigned_to, status, deadline)
-        )
+        cursor.execute("""
+            INSERT INTO tasks (project_id, title, description, assigned_to, status, deadline)
+            VALUES (%s,%s,%s,%s,%s,%s)
+        """, (project_id, title, description, assigned_to, status, deadline))
         conn.commit()
-        return redirect(url_for('tasks', project_id=project_id))
-    return render_template('new_task.html', project_id=project_id)
+
+        return redirect(url_for('kanban', project_id=project_id))
+
+    return render_template('new_task.html', project=project)
+
+
+@app.route('/update_task_status', methods=['POST'])
+def update_task_status():
+    data = request.get_json()
+    task_id = data['task_id']
+    status = data['status']
+
+    cursor.execute("UPDATE tasks SET status=%s WHERE id=%s", (status, task_id))
+    conn.commit()
+
+    # Return updated progress for project
+    cursor.execute("SELECT project_id FROM tasks WHERE id=%s", (task_id,))
+    project_id = cursor.fetchone()['project_id']
+
+    cursor.execute("SELECT COUNT(*) AS total FROM tasks WHERE project_id=%s", (project_id,))
+    total = cursor.fetchone()['total']
+
+    cursor.execute("SELECT COUNT(*) AS done FROM tasks WHERE project_id=%s AND status='Done'", (project_id,))
+    done = cursor.fetchone()['done']
+
+    progress = int((done / total) * 100) if total > 0 else 0
+
+    return {'success': True, 'progress': progress, 'project_id': project_id}
+
 
 # Edit Project
 @app.route('/edit_project/<int:project_id>', methods=['GET', 'POST'])
