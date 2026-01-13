@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 import mysql.connector
+from flask import request, jsonify
 
 app = Flask(__name__)
 app.secret_key = "your_secret_key"  # needed for sessions
@@ -237,10 +238,11 @@ def update_task_status():
     task_id = data['task_id']
     status = data['status']
 
+    # Update task
     cursor.execute("UPDATE tasks SET status=%s WHERE id=%s", (status, task_id))
     conn.commit()
 
-    # Return updated progress for project
+    # Calculate new progress for project
     cursor.execute("SELECT project_id FROM tasks WHERE id=%s", (task_id,))
     project_id = cursor.fetchone()['project_id']
 
@@ -291,6 +293,74 @@ def delete_project(project_id):
     conn.commit()
     return redirect(url_for('projects'))
 
+@app.route('/get_task/<int:task_id>')
+def get_task(task_id):
+    # Use global cursor instead of creating a new one
+    cursor.execute("SELECT * FROM tasks WHERE id=%s", (task_id,))
+    task = cursor.fetchone()
+    if not task:
+        return jsonify({'error': 'Task not found'}), 404
+    return jsonify(task)
+
+
+@app.route('/edit_task', methods=['POST'])
+def edit_task():
+    data = request.get_json()
+    task_id = data.get('task_id')
+    title = data.get('title', '')
+    description = data.get('description', '')
+    assigned_to = data.get('assigned_to', '')
+    status = data.get('status', 'To Do')
+    deadline = data.get('deadline', None)
+    priority = data.get('priority', 'Low')
+
+    try:
+        cursor = db.cursor()
+        # Ensure the tasks table has a priority column
+        cursor.execute("""
+            UPDATE tasks
+            SET title=%s, description=%s, assigned_to=%s, status=%s, deadline=%s, priority=%s
+            WHERE id=%s
+        """, (title, description, assigned_to, status, deadline, priority, task_id))
+        db.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        print("Edit Task Error:", e)
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/edit_task/<int:task_id>', methods=['GET', 'POST'])
+def edit_task_page(task_id):
+    cursor.execute("SELECT * FROM tasks WHERE id=%s", (task_id,))
+    task = cursor.fetchone()
+    if request.method == 'POST':
+        title = request.form['title']
+        description = request.form.get('description')
+        assigned_to = request.form['assigned_to']
+        status = request.form['status']
+        deadline = request.form.get('deadline')
+        priority = request.form.get('priority', 'Low')
+
+        cursor.execute("""
+            UPDATE tasks SET title=%s, description=%s, assigned_to=%s,
+            status=%s, deadline=%s, priority=%s WHERE id=%s
+        """, (title, description, assigned_to, status, deadline, priority, task_id))
+        conn.commit()
+        return redirect(url_for('kanban', project_id=task['project_id']))
+    return render_template('edit_task.html', task=task)
+
+@app.route('/project_progress/<int:project_id>')
+def project_progress(project_id):
+    cursor.execute("SELECT COUNT(*) AS total FROM tasks WHERE project_id=%s", (project_id,))
+    total_row = cursor.fetchone()
+    total = total_row['total'] if total_row else 0
+
+    cursor.execute("SELECT COUNT(*) AS done_count FROM tasks WHERE project_id=%s AND status='Done'", (project_id,))
+    done_row = cursor.fetchone()
+    done_count = done_row['done_count'] if done_row else 0
+
+    progress = int((done_count / total) * 100) if total > 0 else 0
+    return jsonify({'progress': progress})
 
 if __name__ == "__main__":
     app.run(debug=True)

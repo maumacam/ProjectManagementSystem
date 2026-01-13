@@ -4,7 +4,6 @@
     <title>Kanban Board - {{ project.name }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
-        /* Kanban board grid */
         .kanban {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -12,39 +11,98 @@
             margin-top: 20px;
         }
 
-        /* Columns */
         .kanban-column {
             background: #f8fafc;
             padding: 15px;
             border-radius: 10px;
-            min-height: 300px;
+            min-height: 400px;
+            border: 1px solid #e2e8f0;
         }
 
         .kanban-column h3 {
             text-align: center;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
+            color: #4a5568;
         }
 
-        /* Task cards */
         .kanban-task {
             background: #fff;
-            padding: 10px;
-            border-radius: 6px;
-            margin-bottom: 10px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
             cursor: grab;
+            border-left: 4px solid #cbd5e0;
+            font-size: 0.9em;
         }
 
-        .kanban-task:active {
-            cursor: grabbing;
+        .kanban-task:hover {
+            border-color: #4A90E2;
+            background: #f7fafc;
         }
 
-        /* Header buttons */
         .top-buttons {
             display: flex;
             gap: 10px;
             margin-bottom: 20px;
         }
+
+        .progress-container {
+            width: 100%;
+            height: 15px;
+            background: #e2e8f0;
+            border-radius: 10px;
+            margin-bottom: 5px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: #4A90E2;
+            border-radius: 10px;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        /* Modal Overlay */
+        #taskModal {
+            display: none; 
+            position: fixed; 
+            top: 0; left: 0; 
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); 
+            justify-content: center; 
+            align-items: center;
+            z-index: 1000;
+        }
+
+        /* Modal Content Box */
+        .modal-content {
+            background: #fff; 
+            padding: 30px; 
+            border-radius: 12px; 
+            width: 450px; 
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+
+        .modal-content h3 { margin-top: 0; color: #2d3748; }
+        .modal-content p { margin: 8px 0; color: #4a5568; }
+
+        #taskForm input, #taskForm select, #taskForm textarea {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            margin-bottom: 15px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            box-sizing: border-box;
+        }
+
+        .btn-save { background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; }
+        .btn-edit { background: #4A90E2; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; }
+        .btn-cancel { background: #edf2f7; color: #4a5568; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; margin-left: 10px; }
     </style>
 </head>
 <body>
@@ -57,85 +115,199 @@
         <a href="{{ url_for('new_task', project_id=project.id) }}"><button>+ Add Task</button></a>
     </div>
 
+    <!-- Progress Bar -->
+    <div class="progress-container">
+        <div class="progress-bar" id="progress-{{ project.id }}" style="width: {{ project.progress }}%;"></div>
+    </div>
+    <p id="progress-text-{{ project.id }}">{{ project.progress }}% Complete</p>
+
     <div class="kanban">
-        <!-- To Do Column -->
-        <div class="kanban-column" data-status="To Do">
-            <h3>To Do</h3>
-            {% for task in todo %}
-                <div class="kanban-task" draggable="true" data-id="{{ task.id }}">
-                    {{ task.title }}<br>
-                    Assigned: {{ task.assigned_to }}<br>
-                    Deadline: {{ task.deadline }}
-                </div>
+        {% for status in ['To Do', 'In Progress', 'Done'] %}
+        <div class="kanban-column" data-status="{{ status }}">
+            <h3>{{ status }}</h3>
+            {% set tasks = todo if status == 'To Do' else (in_progress if status == 'In Progress' else done) %}
+            {% for task in tasks %}
+            <div class="kanban-task" draggable="true" data-id="{{ task.id }}" onclick="openTaskModal({{ task.id }})">
+                <strong>{{ task.title }}</strong><br>
+                <small>👤 {{ task.assigned_to }}</small><br>
+                <small>📅 {{ task.deadline or 'None' }}</small><br>
+                <small>💬 {{ (task.description or '')[:40] }}{% if task.description and task.description|length > 40 %}...{% endif %}</small><br>
+                <small>🚩 Priority: 
+                    <span style="color: {% if task.priority=='High' %}red{% elif task.priority=='Medium' %}orange{% else %}gray{% endif %}">
+                        {{ task.priority or 'Low' }}
+                    </span>
+                </small>
+            </div>
             {% endfor %}
         </div>
-
-        <!-- In Progress Column -->
-        <div class="kanban-column" data-status="In Progress">
-            <h3>In Progress</h3>
-            {% for task in in_progress %}
-                <div class="kanban-task" draggable="true" data-id="{{ task.id }}">
-                    {{ task.title }}<br>
-                    Assigned: {{ task.assigned_to }}<br>
-                    Deadline: {{ task.deadline }}
-                </div>
-            {% endfor %}
-        </div>
-
-        <!-- Done Column -->
-        <div class="kanban-column" data-status="Done">
-            <h3>Done</h3>
-            {% for task in done %}
-                <div class="kanban-task" draggable="true" data-id="{{ task.id }}">
-                    {{ task.title }}<br>
-                    Assigned: {{ task.assigned_to }}<br>
-                    Deadline: {{ task.deadline }}
-                </div>
-            {% endfor %}
-        </div>
+        {% endfor %}
     </div>
 </div>
 
-<!-- DRAG & DROP JS -->
+<!-- Modal -->
+<div id="taskModal">
+    <div class="modal-content">
+        <span style="position:absolute; top:15px; right:20px; cursor:pointer; font-size: 24px;" onclick="closeTaskModal()">&times;</span>
+        
+        <div id="taskViewMode">
+            <h3 id="modalTitleView">Task Title</h3>
+            <p><strong>Assigned:</strong> <span id="modalAssignedView"></span></p>
+            <p><strong>Deadline:</strong> <span id="modalDeadlineView"></span></p>
+            <p><strong>Status:</strong> <span id="modalStatusView"></span></p>
+            <p><strong>Priority:</strong> <span id="modalPriorityView"></span></p>
+            <p><strong>Description:</strong></p>
+            <p id="modalDescriptionView" style="background: #f7fafc; padding: 10px; border-radius: 5px;"></p>
+            <button class="btn-edit" id="editTaskBtn">Edit Task</button>
+        </div>
+
+        <form id="taskForm" style="display:none;">
+            <h3>Edit Task</h3>
+            <input type="hidden" name="task_id" id="modalTaskId">
+            
+            <label>Title:</label>
+            <input type="text" name="title" id="modalTitle" required>
+
+            <label>Description:</label>
+            <textarea name="description" id="modalDescription" rows="4"></textarea>
+
+            <label>Assigned To:</label>
+            <input type="text" name="assigned_to" id="modalAssigned" required>
+
+            <label>Status:</label>
+            <select name="status" id="modalStatus">
+                <option value="To Do">To Do</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Done">Done</option>
+            </select>
+
+            <label>Deadline:</label>
+            <input type="date" name="deadline" id="modalDeadline">
+
+            <label>Priority:</label>
+            <select name="priority" id="modalPriority">
+                <option value="Low">Low</option>
+                <option value="Medium">Medium</option>
+                <option value="High">High</option>
+            </select>
+
+            <div style="margin-top: 10px;">
+                <button type="submit" class="btn-save">Save Changes</button>
+                <button type="button" class="btn-cancel" onclick="cancelEdit()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
 let draggedTask = null;
 
+// Drag & Drop
 document.querySelectorAll('.kanban-task').forEach(task => {
-  task.addEventListener('dragstart', () => {
-    draggedTask = task;
-  });
+    task.addEventListener('dragstart', (e) => {
+        draggedTask = task;
+        e.dataTransfer.setData('text/plain', task.dataset.id);
+        task.style.opacity = '0.4';
+    });
+    task.addEventListener('dragend', () => task.style.opacity = '1');
 });
 
 document.querySelectorAll('.kanban-column').forEach(column => {
-  column.addEventListener('dragover', e => e.preventDefault());
+    column.addEventListener('dragover', e => e.preventDefault());
+    column.addEventListener('drop', () => {
+        if (!draggedTask) return;
+        const status = column.getAttribute('data-status');
+        column.appendChild(draggedTask);
 
-  column.addEventListener('drop', () => {
-    if (!draggedTask) return;
-    const status = column.getAttribute('data-status');
-    column.appendChild(draggedTask);
+        fetch('/update_task_status', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({task_id: draggedTask.dataset.id, status: status})
+        }).then(() => updateProgress({{ project.id }}));
 
-    fetch('/update_task_status', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        task_id: draggedTask.getAttribute('data-id'),
-        status: status
-      })
-    })
-    .then(res => res.json())
-    .then(data => {
-        // Update progress bar in dashboard if it exists
-        const progressBar = document.querySelector(`#progress-${data.project_id}`);
-        if (progressBar) {
-            progressBar.value = data.progress;
-            progressBar.nextElementSibling.textContent = `${data.progress}%`;
-        }
         draggedTask = null;
     });
-  });
 });
-</script>
 
+// Modal
+function openTaskModal(taskId) {
+    fetch(`/get_task/${taskId}`)
+        .then(res => res.json())
+        .then(task => {
+            // View Mode
+            document.getElementById('modalTitleView').textContent = task.title;
+            document.getElementById('modalAssignedView').textContent = task.assigned_to;
+            document.getElementById('modalDeadlineView').textContent = task.deadline || 'None';
+            document.getElementById('modalStatusView').textContent = task.status;
+            document.getElementById('modalPriorityView').textContent = task.priority || 'Low';
+            document.getElementById('modalDescriptionView').textContent = task.description || 'No description provided.';
+
+            // Edit Mode
+            document.getElementById('modalTaskId').value = task.id;
+            document.getElementById('modalTitle').value = task.title;
+            document.getElementById('modalAssigned').value = task.assigned_to;
+            document.getElementById('modalDeadline').value = task.deadline || '';
+            document.getElementById('modalStatus').value = task.status;
+            document.getElementById('modalPriority').value = task.priority || 'Low';
+            document.getElementById('modalDescription').value = task.description || '';
+
+            document.getElementById('taskViewMode').style.display = 'block';
+            document.getElementById('taskForm').style.display = 'none';
+            document.getElementById('taskModal').style.display = 'flex';
+        });
+}
+
+function closeTaskModal() {
+    document.getElementById('taskModal').style.display = 'none';
+}
+
+document.getElementById('editTaskBtn').onclick = function() {
+    document.getElementById('taskViewMode').style.display = 'none';
+    document.getElementById('taskForm').style.display = 'block';
+};
+
+function cancelEdit() {
+    document.getElementById('taskForm').style.display = 'none';
+    document.getElementById('taskViewMode').style.display = 'block';
+}
+
+// Close on outside click
+window.onclick = function(event) {
+    if(event.target == document.getElementById('taskModal')) closeTaskModal();
+}
+
+// Submit Edit
+document.getElementById('taskForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    const taskData = {
+        task_id: document.getElementById('modalTaskId').value,
+        title: document.getElementById('modalTitle').value,
+        description: document.getElementById('modalDescription').value,
+        assigned_to: document.getElementById('modalAssigned').value,
+        status: document.getElementById('modalStatus').value,
+        deadline: document.getElementById('modalDeadline').value,
+        priority: document.getElementById('modalPriority').value
+    };
+
+    fetch('/edit_task', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(taskData)
+    }).then(res => res.json())
+      .then(data => { if(data.success) location.reload(); });
+});
+
+// Update progress bar live
+function updateProgress(projectId){
+    fetch(`/project_progress/${projectId}`)
+        .then(res => res.json())
+        .then(data => {
+            const bar = document.getElementById(`progress-${projectId}`);
+            const text = document.getElementById(`progress-text-${projectId}`);
+            if(bar) bar.style.width = data.progress + '%';
+            if(text) text.textContent = data.progress + '% Complete';
+        });
+}
+</script>
 
 </body>
 </html>

@@ -4,6 +4,41 @@
     <title>Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="{{ url_for('static', filename='main.js') }}"></script>
+    <style>
+        /* New Progress Bar Styling */
+        .progress-container {
+            width: 100%;
+            height: 15px;
+            background: #e2e8f0;
+            border-radius: 10px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #4A90E2;
+            border-radius: 10px;
+            width: 0%; /* Initial state for animation */
+            transition: width 0.5s ease-in-out;
+        }
+        
+        /* Dashboard Layout Tweaks */
+        .project-box {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid #edf2f7;
+        }
+        .card {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+    </style>
 </head>
 <body>
 
@@ -22,14 +57,19 @@
         <a href="{{ url_for('logout') }}"><button>Logout</button></a>
     </div>
 
+    
+
     {% for project in projects %}
     <div class="project-box">
         <h3>{{ project.name }}</h3>
         <p>{{ project.description }}</p>
 
         <div style="margin-bottom: 10px;">
-            Progress: {{ project.progress }}%
-            <progress value="{{ project.progress }}" max="100" style="width: 100%;"></progress>
+            <strong>Progress:</strong>
+            <div class="progress-container">
+                <div class="progress-bar" id="progress-{{ project.id }}" style="width: {{ project.progress }}%;"></div>
+            </div>
+            <p><span id="percent-{{ project.id }}">{{ project.progress }}</span>% Complete</p>
         </div>
 
         <div style="margin-top:15px;">
