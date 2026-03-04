@@ -1,20 +1,50 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>New Project</title>
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
-    <script src="{{ url_for('static', filename='main.js') }}"></script>
-</head>
-<body>
-<div class="container">
-    <h1>New Project</h1>
-    <form method="POST">
-        <input type="text" name="name" placeholder="Project Name" required><br>
-        <textarea name="description" placeholder="Project Description"></textarea><br>
-        <input type="date" name="deadline" required><br>
-        <button type="submit">Create Project</button>
-    </form>
-    <a href="{{ url_for('projects') }}"><button>Back to Projects</button></a>
+{% extends "base.html" %}
+
+{% block title %}New Project - Project Management System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2><i class="fas fa-plus-circle me-2"></i>Create New Project</h2>
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('projects') }}">Projects</a></li>
+            <li class="breadcrumb-item active">New Project</li>
+        </ol>
+    </nav>
 </div>
-</body>
-</html>
+
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('new_project') }}">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Project Name *</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="4"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="deadline" class="form-label">Deadline</label>
+                        <input type="date" class="form-control" id="deadline" name="deadline">
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('projects') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times me-2"></i>Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Create Project
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

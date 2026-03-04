@@ -1,366 +1,463 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+import os
+from datetime import datetime
+from bson.objectid import ObjectId
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from flask_pymongo import PyMongo
 from werkzeug.security import generate_password_hash, check_password_hash
-import mysql.connector
-from flask import request, jsonify
+from functools import wraps
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = "your_secret_key"  # needed for sessions
+app.secret_key = os.getenv('SECRET_KEY', 'fallback-secret-key-change-this')
 
-# MySQL connection
-conn = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    password="",
-    database="project_management"
-)
-cursor = conn.cursor(dictionary=True)
+# =============================
+# MONGODB CONNECTION with error handling
+# =============================
+app.config["MONGO_URI"] = os.getenv('MONGO_URI', "mongodb://localhost:27017/project_management")
+mongo = PyMongo(app)
+db = mongo.db
 
-# Home route
+# Test MongoDB connection
+try:
+    # The ismaster command is cheap and does not require auth
+    mongo.cx.admin.command('ismaster')
+    print("MongoDB connection successful!")
+except Exception as e:
+    print(f"MongoDB connection error: {e}")
+
+# =============================
+# DECORATORS
+# =============================
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Please login first!', 'warning')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def get_user_projects(user_id):
+    """Helper function to get user's projects with task counts"""
+    projects = list(db.projects.find({"user_id": user_id}))
+    
+    for project in projects:
+        project['id'] = str(project['_id'])
+        project_id_str = str(project['_id'])
+        
+        # Get task counts for each status
+        todo_count = db.tasks.count_documents({"project_id": project_id_str, "status": "To Do"})
+        in_progress_count = db.tasks.count_documents({"project_id": project_id_str, "status": "In Progress"})
+        done_count = db.tasks.count_documents({"project_id": project_id_str, "status": "Done"})
+        total_count = todo_count + in_progress_count + done_count
+        
+        # Calculate progress
+        project['progress'] = int((done_count / total_count) * 100) if total_count > 0 else 0
+        project['total_tasks'] = total_count
+        project['todo_count'] = todo_count
+        project['in_progress_count'] = in_progress_count
+        project['done_count'] = done_count
+        
+        # Format deadline
+        if 'deadline' in project and project['deadline']:
+            try:
+                project['deadline_formatted'] = datetime.strptime(project['deadline'], '%Y-%m-%d').strftime('%b %d, %Y')
+            except:
+                project['deadline_formatted'] = project['deadline']
+    
+    return projects
+
+# =============================
+# ROUTES
+# =============================
+
 @app.route('/')
 def home():
     if 'user_id' in session:
         return redirect(url_for('dashboard'))
     return render_template('index.html')
 
-# Signup route
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'POST':
-        username = request.form['username']
+        username = request.form['username'].strip()
         password = request.form['password']
-        hashed_password = generate_password_hash(password)
-
-        # Check if username exists
-        cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
-        existing_user = cursor.fetchone()
-        if existing_user:
-            flash("Username already exists!")
+        email = request.form.get('email', '').strip()
+        
+        # Validation
+        if not username or not password:
+            flash('Username and password are required!', 'error')
             return redirect(url_for('signup'))
-
-        cursor.execute("INSERT INTO users (username, password) VALUES (%s, %s)", (username, hashed_password))
-        conn.commit()
-        flash("Account created! Please login.")
+        
+        if len(password) < 6:
+            flash('Password must be at least 6 characters long!', 'error')
+            return redirect(url_for('signup'))
+        
+        # Check if user exists
+        if db.users.find_one({"username": username}):
+            flash('Username already exists!', 'error')
+            return redirect(url_for('signup'))
+        
+        if email and db.users.find_one({"email": email}):
+            flash('Email already registered!', 'error')
+            return redirect(url_for('signup'))
+        
+        # Create user
+        hashed_password = generate_password_hash(password)
+        user_data = {
+            "username": username,
+            "password": hashed_password,
+            "email": email,
+            "created_at": datetime.now(),
+            "updated_at": datetime.now()
+        }
+        
+        db.users.insert_one(user_data)
+        flash('Account created successfully! Please login.', 'success')
         return redirect(url_for('login'))
+    
     return render_template('signup.html')
 
-# Login route
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
+        username = request.form['username'].strip()
         password = request.form['password']
-
-        cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
-        user = cursor.fetchone()
+        
+        user = db.users.find_one({"username": username})
+        
         if user and check_password_hash(user['password'], password):
-            session['user_id'] = user['id']
+            session['user_id'] = str(user['_id'])
             session['username'] = user['username']
+            session['login_time'] = datetime.now().isoformat()
+            
+            flash(f'Welcome back, {username}!', 'success')
             return redirect(url_for('dashboard'))
         else:
-            flash("Invalid username or password")
+            flash('Invalid username or password!', 'error')
             return redirect(url_for('login'))
+    
     return render_template('login.html')
 
-# Dashboard (main project view)
 @app.route('/dashboard')
+@login_required
 def dashboard():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
     user_id = session['user_id']
-
-    # ===== DASHBOARD STATS =====
-    cursor.execute("SELECT COUNT(*) AS total_projects FROM projects WHERE user_id=%s", (user_id,))
-    total_projects = cursor.fetchone()['total_projects']
-
-    cursor.execute("""
-        SELECT COUNT(*) AS total_tasks
-        FROM tasks t
-        JOIN projects p ON t.project_id = p.id
-        WHERE p.user_id=%s
-    """, (user_id,))
-    total_tasks = cursor.fetchone()['total_tasks']
-
-    cursor.execute("""
-        SELECT COUNT(*) AS in_progress
-        FROM tasks t
-        JOIN projects p ON t.project_id = p.id
-        WHERE p.user_id=%s AND t.status='In Progress'
-    """, (user_id,))
-    in_progress = cursor.fetchone()['in_progress']
-
-    cursor.execute("""
-        SELECT COUNT(*) AS completed
-        FROM tasks t
-        JOIN projects p ON t.project_id = p.id
-        WHERE p.user_id=%s AND t.status='Done'
-    """, (user_id,))
-    completed = cursor.fetchone()['completed']
-
-    # ===== PROJECTS =====
-    cursor.execute("SELECT * FROM projects WHERE user_id=%s", (user_id,))
-    projects = cursor.fetchall()
-
-    for project in projects:
-        cursor.execute("SELECT COUNT(*) AS total FROM tasks WHERE project_id=%s", (project['id'],))
-        total = cursor.fetchone()['total']
-
-        cursor.execute("""
-            SELECT COUNT(*) AS done FROM tasks
-            WHERE project_id=%s AND status='Done'
-        """, (project['id'],))
-        done = cursor.fetchone()['done']
-
-        project['progress'] = int((done / total) * 100) if total > 0 else 0
-
-        cursor.execute("SELECT * FROM tasks WHERE project_id=%s", (project['id'],))
-        project['tasks'] = cursor.fetchall()
-
+    
+    # Get user's projects with stats
+    projects = get_user_projects(user_id)
+    
+    # Calculate overall stats
+    total_projects = len(projects)
+    total_tasks = sum(p['total_tasks'] for p in projects)
+    in_progress_tasks = sum(p['in_progress_count'] for p in projects)
+    completed_tasks = sum(p['done_count'] for p in projects)
+    
+    # Get recent tasks
+    user_projects_ids = [p['id'] for p in projects]
+    recent_tasks = []
+    if user_projects_ids:
+        recent_tasks = list(db.tasks.find(
+            {"project_id": {"$in": user_projects_ids}}
+        ).sort("_id", -1).limit(5))
+        
+        for task in recent_tasks:
+            task['id'] = str(task['_id'])
+            # Get project name for each task
+            project = db.projects.find_one({"_id": ObjectId(task['project_id'])})
+            task['project_name'] = project['name'] if project else 'Unknown Project'
+    
     return render_template(
         'dashboard.html',
         username=session['username'],
         total_projects=total_projects,
         total_tasks=total_tasks,
-        in_progress=in_progress,
-        completed=completed,
-        projects=projects
+        in_progress=in_progress_tasks,
+        completed=completed_tasks,
+        projects=projects,
+        recent_tasks=recent_tasks
     )
 
-@app.route('/kanban/<int:project_id>')
-def kanban(project_id):
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
+@app.route('/projects')
+@login_required
+def projects():
+    projects = get_user_projects(session['user_id'])
+    return render_template('projects.html', projects=projects)
 
-    cursor.execute(
-        "SELECT * FROM projects WHERE id=%s AND user_id=%s",
-        (project_id, session['user_id'])
-    )
-    project = cursor.fetchone()
+@app.route('/new_project', methods=['GET', 'POST'])
+@login_required
+def new_project():
+    if request.method == 'POST':
+        name = request.form['name'].strip()
+        description = request.form.get('description', '').strip()
+        deadline = request.form.get('deadline', '')
+        
+        if not name:
+            flash('Project name is required!', 'error')
+            return redirect(url_for('new_project'))
+        
+        project_data = {
+            "name": name,
+            "description": description,
+            "deadline": deadline if deadline else None,
+            "user_id": session['user_id'],
+            "created_at": datetime.now(),
+            "updated_at": datetime.now()
+        }
+        
+        result = db.projects.insert_one(project_data)
+        flash('Project created successfully!', 'success')
+        return redirect(url_for('projects'))
+    
+    return render_template('new_project.html')
 
+@app.route('/project/<project_id>')
+@login_required
+def view_project(project_id):
+    project = db.projects.find_one({"_id": ObjectId(project_id), "user_id": session['user_id']})
     if not project:
+        flash('Project not found!', 'error')
+        return redirect(url_for('projects'))
+    
+    # Get all tasks for this project
+    tasks = list(db.tasks.find({"project_id": project_id}).sort("created_at", -1))
+    
+    # Group tasks by status for kanban view
+    todo = [t for t in tasks if t['status'] == 'To Do']
+    in_progress = [t for t in tasks if t['status'] == 'In Progress']
+    done = [t for t in tasks if t['status'] == 'Done']
+    
+    # Format tasks for display
+    for task_list in [todo, in_progress, done]:
+        for task in task_list:
+            task['id'] = str(task['_id'])
+            if 'deadline' in task and task['deadline']:
+                try:
+                    task['deadline_formatted'] = datetime.strptime(task['deadline'], '%Y-%m-%d').strftime('%b %d, %Y')
+                except:
+                    task['deadline_formatted'] = task['deadline']
+    
+    return render_template('project_detail.html', 
+                         project=project, 
+                         todo=todo, 
+                         in_progress=in_progress, 
+                         done=done)
+
+@app.route('/project/<project_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_project(project_id):
+    project = db.projects.find_one({"_id": ObjectId(project_id), "user_id": session['user_id']})
+    if not project:
+        flash('Project not found!', 'error')
+        return redirect(url_for('projects'))
+    
+    if request.method == 'POST':
+        name = request.form['name'].strip()
+        description = request.form.get('description', '').strip()
+        deadline = request.form.get('deadline', '')
+        
+        if not name:
+            flash('Project name is required!', 'error')
+            return redirect(url_for('edit_project', project_id=project_id))
+        
+        update_data = {
+            "name": name,
+            "description": description,
+            "deadline": deadline if deadline else None,
+            "updated_at": datetime.now()
+        }
+        
+        db.projects.update_one(
+            {"_id": ObjectId(project_id)},
+            {"$set": update_data}
+        )
+        
+        flash('Project updated successfully!', 'success')
+        return redirect(url_for('view_project', project_id=project_id))
+    
+    return render_template('edit_project.html', project=project)
+
+@app.route('/project/<project_id>/delete', methods=['POST'])
+@login_required
+def delete_project(project_id):
+    # Delete all tasks first
+    db.tasks.delete_many({"project_id": project_id})
+    # Delete the project
+    result = db.projects.delete_one({"_id": ObjectId(project_id), "user_id": session['user_id']})
+    
+    if result.deleted_count > 0:
+        flash('Project deleted successfully!', 'success')
+    else:
+        flash('Project not found!', 'error')
+    
+    return redirect(url_for('projects'))
+
+@app.route('/project/<project_id>/tasks/new', methods=['GET', 'POST'])
+@login_required
+def new_task(project_id):
+    project = db.projects.find_one({"_id": ObjectId(project_id), "user_id": session['user_id']})
+    if not project:
+        flash('Project not found!', 'error')
+        return redirect(url_for('projects'))
+    
+    if request.method == 'POST':
+        title = request.form['title'].strip()
+        description = request.form.get('description', '').strip()
+        assigned_to = request.form.get('assigned_to', '').strip()
+        status = request.form['status']
+        deadline = request.form.get('deadline', '')
+        priority = request.form.get('priority', 'Medium')
+        
+        if not title:
+            flash('Task title is required!', 'error')
+            return redirect(url_for('new_task', project_id=project_id))
+        
+        task_data = {
+            "project_id": project_id,
+            "title": title,
+            "description": description,
+            "assigned_to": assigned_to if assigned_to else None,
+            "status": status,
+            "deadline": deadline if deadline else None,
+            "priority": priority,
+            "created_at": datetime.now(),
+            "updated_at": datetime.now()
+        }
+        
+        db.tasks.insert_one(task_data)
+        flash('Task created successfully!', 'success')
+        return redirect(url_for('view_project', project_id=project_id))
+    
+    return render_template('new_task.html', project=project)
+
+@app.route('/task/<task_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_task(task_id):
+    task = db.tasks.find_one({"_id": ObjectId(task_id)})
+    if not task:
+        flash('Task not found!', 'error')
         return redirect(url_for('dashboard'))
+    
+    # Check if user owns the project
+    project = db.projects.find_one({"_id": ObjectId(task['project_id']), "user_id": session['user_id']})
+    if not project:
+        flash('Access denied!', 'error')
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        title = request.form['title'].strip()
+        description = request.form.get('description', '').strip()
+        assigned_to = request.form.get('assigned_to', '').strip()
+        status = request.form['status']
+        deadline = request.form.get('deadline', '')
+        priority = request.form.get('priority', 'Medium')
+        
+        if not title:
+            flash('Task title is required!', 'error')
+            return redirect(url_for('edit_task', task_id=task_id))
+        
+        update_data = {
+            "title": title,
+            "description": description,
+            "assigned_to": assigned_to if assigned_to else None,
+            "status": status,
+            "deadline": deadline if deadline else None,
+            "priority": priority,
+            "updated_at": datetime.now()
+        }
+        
+        db.tasks.update_one(
+            {"_id": ObjectId(task_id)},
+            {"$set": update_data}
+        )
+        
+        flash('Task updated successfully!', 'success')
+        return redirect(url_for('view_project', project_id=task['project_id']))
+    
+    return render_template('edit_task.html', task=task, project=project)
 
-    cursor.execute("SELECT * FROM tasks WHERE project_id=%s AND status='To Do'", (project_id,))
-    todo = cursor.fetchall()
+@app.route('/task/<task_id>/delete', methods=['POST'])
+@login_required
+def delete_task(task_id):
+    task = db.tasks.find_one({"_id": ObjectId(task_id)})
+    if not task:
+        flash('Task not found!', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Check if user owns the project
+    project = db.projects.find_one({"_id": ObjectId(task['project_id']), "user_id": session['user_id']})
+    if not project:
+        flash('Access denied!', 'error')
+        return redirect(url_for('dashboard'))
+    
+    db.tasks.delete_one({"_id": ObjectId(task_id)})
+    flash('Task deleted successfully!', 'success')
+    
+    return redirect(url_for('view_project', project_id=task['project_id']))
 
-    cursor.execute("SELECT * FROM tasks WHERE project_id=%s AND status='In Progress'", (project_id,))
-    in_progress = cursor.fetchall()
-
-    cursor.execute("SELECT * FROM tasks WHERE project_id=%s AND status='Done'", (project_id,))
-    done = cursor.fetchall()
-
-    return render_template(
-        'kanban.html',
-        project=project,
-        todo=todo,
-        in_progress=in_progress,
-        done=done
+@app.route('/api/update_task_status', methods=['POST'])
+@login_required
+def update_task_status():
+    data = request.get_json()
+    task_id = data.get('task_id')
+    status = data.get('status')
+    
+    if not task_id or not status:
+        return jsonify({'success': False, 'error': 'Missing data'}), 400
+    
+    task = db.tasks.find_one({"_id": ObjectId(task_id)})
+    if not task:
+        return jsonify({'success': False, 'error': 'Task not found'}), 404
+    
+    # Check if user owns the project
+    project = db.projects.find_one({"_id": ObjectId(task['project_id']), "user_id": session['user_id']})
+    if not project:
+        return jsonify({'success': False, 'error': 'Access denied'}), 403
+    
+    # Update task status
+    db.tasks.update_one(
+        {"_id": ObjectId(task_id)},
+        {"$set": {"status": status, "updated_at": datetime.now()}}
     )
+    
+    # Calculate new progress for the project
+    project_id = task['project_id']
+    total = db.tasks.count_documents({"project_id": project_id})
+    done = db.tasks.count_documents({"project_id": project_id, "status": "Done"})
+    progress = int((done / total) * 100) if total > 0 else 0
+    
+    return jsonify({
+        'success': True, 
+        'progress': progress, 
+        'project_id': project_id,
+        'task_id': task_id,
+        'new_status': status
+    })
 
-# Logout
+@app.route('/profile')
+@login_required
+def profile():
+    user = db.users.find_one({"_id": ObjectId(session['user_id'])})
+    return render_template('profile.html', user=user)
+
 @app.route('/logout')
 def logout():
     session.clear()
+    flash('You have been logged out.', 'info')
     return redirect(url_for('home'))
 
-# Show all projects for logged-in user
-@app.route('/projects')
-def projects():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
+# Error handlers
+@app.errorhandler(404)
+def not_found_error(error):
+    return render_template('404.html'), 404
 
-    cursor.execute("SELECT * FROM projects WHERE user_id=%s", (session['user_id'],))
-    projects = cursor.fetchall()
-    return render_template('projects.html', projects=projects)
-
-# Add new project
-@app.route('/new_project', methods=['GET', 'POST'])
-def new_project():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    if request.method == 'POST':
-        name = request.form['name']
-        description = request.form['description']
-        deadline = request.form['deadline']
-
-        cursor.execute(
-            "INSERT INTO projects (name, description, deadline, user_id) VALUES (%s, %s, %s, %s)",
-            (name, description, deadline, session['user_id'])
-        )
-        conn.commit()
-        return redirect(url_for('dashboard'))
-    return render_template('new_project.html')
-
-# Show tasks for a project
-@app.route('/projects/<int:project_id>/tasks')
-def tasks(project_id):
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    cursor.execute("SELECT * FROM tasks WHERE project_id=%s", (project_id,))
-    tasks = cursor.fetchall()
-    return render_template('tasks.html', tasks=tasks, project_id=project_id)
-
-# Add new task
-@app.route('/new_task/<int:project_id>', methods=['GET', 'POST'])
-def new_task(project_id):
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    # Get project info
-    cursor.execute("SELECT * FROM projects WHERE id=%s AND user_id=%s", (project_id, session['user_id']))
-    project = cursor.fetchone()
-    if not project:
-        return redirect(url_for('dashboard'))
-
-    if request.method == 'POST':
-        title = request.form['title']
-        description = request.form.get('description')
-        assigned_to = request.form['assigned_to']
-        status = request.form['status']
-        deadline = request.form.get('deadline')
-
-        cursor.execute("""
-            INSERT INTO tasks (project_id, title, description, assigned_to, status, deadline)
-            VALUES (%s,%s,%s,%s,%s,%s)
-        """, (project_id, title, description, assigned_to, status, deadline))
-        conn.commit()
-
-        return redirect(url_for('kanban', project_id=project_id))
-
-    return render_template('new_task.html', project=project)
-
-
-@app.route('/update_task_status', methods=['POST'])
-def update_task_status():
-    data = request.get_json()
-    task_id = data['task_id']
-    status = data['status']
-
-    # Update task
-    cursor.execute("UPDATE tasks SET status=%s WHERE id=%s", (status, task_id))
-    conn.commit()
-
-    # Calculate new progress for project
-    cursor.execute("SELECT project_id FROM tasks WHERE id=%s", (task_id,))
-    project_id = cursor.fetchone()['project_id']
-
-    cursor.execute("SELECT COUNT(*) AS total FROM tasks WHERE project_id=%s", (project_id,))
-    total = cursor.fetchone()['total']
-
-    cursor.execute("SELECT COUNT(*) AS done FROM tasks WHERE project_id=%s AND status='Done'", (project_id,))
-    done = cursor.fetchone()['done']
-
-    progress = int((done / total) * 100) if total > 0 else 0
-
-    return {'success': True, 'progress': progress, 'project_id': project_id}
-
-
-# Edit Project
-@app.route('/edit_project/<int:project_id>', methods=['GET', 'POST'])
-def edit_project(project_id):
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    cursor.execute("SELECT * FROM projects WHERE id=%s AND user_id=%s", (project_id, session['user_id']))
-    project = cursor.fetchone()
-    if not project:
-        return "Project not found or access denied"
-
-    if request.method == 'POST':
-        name = request.form['name']
-        description = request.form['description']
-        deadline = request.form['deadline']
-
-        cursor.execute(
-            "UPDATE projects SET name=%s, description=%s, deadline=%s WHERE id=%s",
-            (name, description, deadline, project_id)
-        )
-        conn.commit()
-        return redirect(url_for('projects'))
-    return render_template('edit_project.html', project=project)
-
-# Delete Project
-@app.route('/delete_project/<int:project_id>', methods=['POST'])
-def delete_project(project_id):
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    # Delete tasks first to maintain foreign key constraint
-    cursor.execute("DELETE FROM tasks WHERE project_id=%s", (project_id,))
-    cursor.execute("DELETE FROM projects WHERE id=%s AND user_id=%s", (project_id, session['user_id']))
-    conn.commit()
-    return redirect(url_for('projects'))
-
-@app.route('/get_task/<int:task_id>')
-def get_task(task_id):
-    # Use global cursor instead of creating a new one
-    cursor.execute("SELECT * FROM tasks WHERE id=%s", (task_id,))
-    task = cursor.fetchone()
-    if not task:
-        return jsonify({'error': 'Task not found'}), 404
-    return jsonify(task)
-
-
-@app.route('/edit_task', methods=['POST'])
-def edit_task():
-    data = request.get_json()
-    task_id = data.get('task_id')
-    title = data.get('title', '')
-    description = data.get('description', '')
-    assigned_to = data.get('assigned_to', '')
-    status = data.get('status', 'To Do')
-    deadline = data.get('deadline', None)
-    priority = data.get('priority', 'Low')
-
-    try:
-        cursor = db.cursor()
-        # Ensure the tasks table has a priority column
-        cursor.execute("""
-            UPDATE tasks
-            SET title=%s, description=%s, assigned_to=%s, status=%s, deadline=%s, priority=%s
-            WHERE id=%s
-        """, (title, description, assigned_to, status, deadline, priority, task_id))
-        db.commit()
-        return jsonify({'success': True})
-    except Exception as e:
-        print("Edit Task Error:", e)
-        return jsonify({'success': False, 'error': str(e)})
-
-
-@app.route('/edit_task/<int:task_id>', methods=['GET', 'POST'])
-def edit_task_page(task_id):
-    cursor.execute("SELECT * FROM tasks WHERE id=%s", (task_id,))
-    task = cursor.fetchone()
-    if request.method == 'POST':
-        title = request.form['title']
-        description = request.form.get('description')
-        assigned_to = request.form['assigned_to']
-        status = request.form['status']
-        deadline = request.form.get('deadline')
-        priority = request.form.get('priority', 'Low')
-
-        cursor.execute("""
-            UPDATE tasks SET title=%s, description=%s, assigned_to=%s,
-            status=%s, deadline=%s, priority=%s WHERE id=%s
-        """, (title, description, assigned_to, status, deadline, priority, task_id))
-        conn.commit()
-        return redirect(url_for('kanban', project_id=task['project_id']))
-    return render_template('edit_task.html', task=task)
-
-@app.route('/project_progress/<int:project_id>')
-def project_progress(project_id):
-    cursor.execute("SELECT COUNT(*) AS total FROM tasks WHERE project_id=%s", (project_id,))
-    total = cursor.fetchone()['total']
-
-    cursor.execute("SELECT COUNT(*) AS done FROM tasks WHERE project_id=%s AND status='Done'", (project_id,))
-    done = cursor.fetchone()['done']
-
-    cursor.execute("SELECT COUNT(*) AS in_progress FROM tasks WHERE project_id=%s AND status='In Progress'", (project_id,))
-    in_progress = cursor.fetchone()['in_progress']
-
-    return jsonify({'total': total, 'done': done, 'inProgress': in_progress})
+@app.errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    return render_template('500.html'), 500
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)

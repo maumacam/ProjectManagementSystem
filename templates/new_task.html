@@ -1,36 +1,78 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Add New Task</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-<div class="container">
-    <h2>Add Task to "{{ project.name }}"</h2>
+{% extends "base.html" %}
 
-    <form method="POST" action="{{ url_for('new_task', project_id=project.id) }}">
-        <label>Title:</label><br>
-        <input type="text" name="title" required><br><br>
+{% block title %}New Task - {{ project.name }} - Project Management System{% endblock %}
 
-        <label>Description:</label><br>
-        <textarea name="description"></textarea><br><br>
-
-        <label>Assigned To:</label><br>
-        <input type="text" name="assigned_to" required><br><br>
-
-        <label>Status:</label><br>
-        <select name="status">
-            <option value="To Do">To Do</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Done">Done</option>
-        </select><br><br>
-
-        <label>Deadline:</label><br>
-        <input type="date" name="deadline"><br><br>
-
-        <button type="submit">Add Task</button>
-        <a href="{{ url_for('kanban', project_id=project.id) }}"><button type="button">Cancel</button></a>
-    </form>
+{% block content %}
+<div class="page-header">
+    <h2><i class="fas fa-plus-circle me-2"></i>Add New Task</h2>
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('projects') }}">Projects</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('view_project', project_id=project._id) }}">{{ project.name }}</a></li>
+            <li class="breadcrumb-item active">New Task</li>
+        </ol>
+    </nav>
 </div>
-</body>
-</html>
+
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('new_task', project_id=project._id) }}">
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Task Title *</label>
+                        <input type="text" class="form-control" id="title" name="title" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="status" class="form-label">Status</label>
+                            <select class="form-select" id="status" name="status">
+                                <option value="To Do">To Do</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Done">Done</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="priority" class="form-label">Priority</label>
+                            <select class="form-select" id="priority" name="priority">
+                                <option value="Low">Low</option>
+                                <option value="Medium" selected>Medium</option>
+                                <option value="High">High</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="assigned_to" class="form-label">Assigned To</label>
+                            <input type="text" class="form-control" id="assigned_to" name="assigned_to" placeholder="Enter name">
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="deadline" class="form-label">Deadline</label>
+                            <input type="date" class="form-control" id="deadline" name="deadline">
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('view_project', project_id=project._id) }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times me-2"></i>Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Create Task
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

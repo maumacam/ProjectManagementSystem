@@ -1,17 +1,72 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Project Management System</title>
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
-    <script src="{{ url_for('static', filename='main.js') }}"></script>
-</head>
-<body>
+{% extends "base.html" %}
+
+{% block title %}Welcome - Project Management System{% endblock %}
+
+{% block content %}
 <div class="container">
-    <h1>Welcome to Project Management System</h1>
-    <div style="text-align:center; margin-top:20px;">
-        <a href="{{ url_for('signup') }}"><button>Sign Up</button></a>
-        <a href="{{ url_for('login') }}"><button>Login</button></a>
+    <!-- Hero Section -->
+    <div class="row min-vh-100 align-items-center">
+        <div class="col-lg-6">
+            <h1 class="display-4 fw-bold mb-4">
+                Manage Your Projects
+                <span class="text-primary">Efficiently</span>
+            </h1>
+            <p class="lead mb-4">
+                A powerful project management tool to help you organize tasks, 
+                track progress, and collaborate with your team effectively.
+            </p>
+            <div class="d-flex gap-3">
+                <a href="{{ url_for('signup') }}" class="btn btn-primary btn-lg">
+                    <i class="fas fa-user-plus me-2"></i>Get Started
+                </a>
+                <a href="{{ url_for('login') }}" class="btn btn-outline-primary btn-lg">
+                    <i class="fas fa-sign-in-alt me-2"></i>Login
+                </a>
+            </div>
+            
+            <!-- Features -->
+            <div class="row mt-5">
+                <div class="col-md-6">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fas fa-check-circle text-primary fa-2x me-3"></i>
+                        <div>
+                            <h6 class="mb-0">Task Management</h6>
+                            <small class="text-muted">Create and organize tasks easily</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fas fa-chart-line text-primary fa-2x me-3"></i>
+                        <div>
+                            <h6 class="mb-0">Progress Tracking</h6>
+                            <small class="text-muted">Monitor project progress</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fas fa-users text-primary fa-2x me-3"></i>
+                        <div>
+                            <h6 class="mb-0">Team Collaboration</h6>
+                            <small class="text-muted">Assign tasks to team members</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fas fa-calendar text-primary fa-2x me-3"></i>
+                        <div>
+                            <h6 class="mb-0">Deadline Management</h6>
+                            <small class="text-muted">Set and track deadlines</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <img src="https://via.placeholder.com/600x400" alt="Project Management" class="img-fluid">
+        </div>
     </div>
 </div>
-</body>
-</html>
+{% endblock %}
