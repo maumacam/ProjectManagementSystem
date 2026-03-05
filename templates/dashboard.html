@@ -1,159 +1,327 @@
+<!-- ===================================================== -->
+<!-- FILE: templates/dashboard.html -->
+<!-- Dashboard Page -->
+<!-- ===================================================== -->
+
 {% extends "base.html" %}
 
 {% block title %}Dashboard - Project Management System{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <div class="d-flex justify-content-between align-items-center">
-        <h2><i class="fas fa-chart-pie me-2"></i>Dashboard</h2>
-        <a href="{{ url_for('new_project') }}" class="btn btn-primary">
-            <i class="fas fa-plus me-2"></i>New Project
-        </a>
+
+<!-- ===================================================== -->
+<!-- PAGE HEADER -->
+<!-- ===================================================== -->
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+
+    <div>
+        <h2 class="fw-bold mb-1">
+            <i class="fas fa-chart-line me-2 text-primary"></i>
+            Dashboard
+        </h2>
+        <p class="text-muted mb-0">Overview of your projects and tasks</p>
     </div>
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item active">Dashboard</li>
-        </ol>
-    </nav>
+
+    <a href="{{ url_for('new_project') }}" class="btn btn-primary">
+        <i class="fas fa-plus me-2"></i>New Project
+    </a>
+
 </div>
 
-<!-- Statistics Cards -->
-<div class="row mb-4">
-    <div class="col-md-3">
-        <div class="stat-card">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <p class="mb-1">Total Projects</p>
-                    <h3 class="stat-value">{{ total_projects }}</h3>
-                </div>
-                <i class="fas fa-project-diagram"></i>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <p class="mb-1">Total Tasks</p>
-                    <h3 class="stat-value">{{ total_tasks }}</h3>
-                </div>
-                <i class="fas fa-tasks"></i>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <p class="mb-1">In Progress</p>
-                    <h3 class="stat-value">{{ in_progress }}</h3>
-                </div>
-                <i class="fas fa-spinner"></i>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="stat-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <p class="mb-1">Completed</p>
-                    <h3 class="stat-value">{{ completed }}</h3>
-                </div>
-                <i class="fas fa-check-circle"></i>
-            </div>
-        </div>
-    </div>
+
+<!-- ===================================================== -->
+<!-- STATISTICS CARDS -->
+<!-- ===================================================== -->
+
+<div class="row g-4 mb-4">
+
+<!-- Total Projects -->
+<div class="col-xl-3 col-md-6">
+<div class="stat-card d-flex justify-content-between align-items-center">
+
+<div>
+<p class="mb-1">Total Projects</p>
+<div class="stat-value">{{ total_projects }}</div>
 </div>
 
-<!-- Recent Projects -->
-<div class="row">
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header bg-white">
-                <h5 class="mb-0"><i class="fas fa-clock me-2"></i>Recent Projects</h5>
-            </div>
-            <div class="card-body">
-                {% if projects %}
-                    <div class="row">
-                        {% for project in projects[:4] %}
-                            <div class="col-md-6 mb-3">
-                                <div class="card h-100">
-                                    <div class="card-body">
-                                        <h6 class="card-title">{{ project.name }}</h6>
-                                        <p class="card-text text-muted small">
-                                            {{ project.description[:100] }}{% if project.description|length > 100 %}...{% endif %}
-                                        </p>
-                                        <div class="mb-2">
-                                            <div class="d-flex justify-content-between mb-1">
-                                                <span class="small">Progress</span>
-                                                <span class="small">{{ project.progress }}%</span>
-                                            </div>
-                                            <div class="progress">
-                                                <div class="progress-bar" style="width: {{ project.progress }}%"></div>
-                                            </div>
-                                        </div>
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <small class="text-muted">
-                                                <i class="far fa-calendar me-1"></i>
-                                                {{ project.deadline_formatted if project.deadline_formatted else 'No deadline' }}
-                                            </small>
-                                            <a href="{{ url_for('view_project', project_id=project.id) }}" 
-                                               class="btn btn-sm btn-outline-primary">
-                                                View <i class="fas fa-arrow-right ms-1"></i>
-                                            </a>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        {% endfor %}
-                    </div>
-                    {% if projects|length > 4 %}
-                        <div class="text-center mt-3">
-                            <a href="{{ url_for('projects') }}" class="btn btn-outline-primary">
-                                View All Projects <i class="fas fa-arrow-right ms-2"></i>
-                            </a>
-                        </div>
-                    {% endif %}
-                {% else %}
-                    <p class="text-muted text-center mb-0">No projects yet. Create your first project!</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-    
-    <!-- Recent Tasks -->
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header bg-white">
-                <h5 class="mb-0"><i class="fas fa-tasks me-2"></i>Recent Tasks</h5>
-            </div>
-            <div class="card-body">
-                {% if recent_tasks %}
-                    {% for task in recent_tasks %}
-                        <div class="task-card mb-2 {{ task.priority|lower }}">
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <h6 class="mb-0">{{ task.title }}</h6>
-                                <span class="priority-badge priority-{{ task.priority|lower }}">
-                                    {{ task.priority }}
-                                </span>
-                            </div>
-                            <p class="small text-muted mb-2">{{ task.project_name }}</p>
-                            <div class="d-flex justify-content-between align-items-center">
-                                <span class="badge bg-{{ 'secondary' if task.status == 'To Do' else 'primary' if task.status == 'In Progress' else 'success' }}">
-                                    {{ task.status }}
-                                </span>
-                                <small class="text-muted">
-                                    <i class="far fa-clock me-1"></i>
-                                    {{ task.deadline_formatted if task.deadline_formatted else 'No deadline' }}
-                                </small>
-                            </div>
-                        </div>
-                    {% endfor %}
-                {% else %}
-                    <p class="text-muted text-center mb-0">No tasks yet.</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
+<div class="bg-white bg-opacity-25 rounded-circle p-3">
+<i class="fas fa-folder"></i>
 </div>
+
+</div>
+</div>
+
+
+<!-- Total Tasks -->
+<div class="col-xl-3 col-md-6">
+<div class="stat-card d-flex justify-content-between align-items-center"
+style="background:linear-gradient(135deg,#f093fb,#f5576c)">
+
+<div>
+<p class="mb-1">Total Tasks</p>
+<div class="stat-value">{{ total_tasks }}</div>
+</div>
+
+<div class="bg-white bg-opacity-25 rounded-circle p-3">
+<i class="fas fa-tasks"></i>
+</div>
+
+</div>
+</div>
+
+
+<!-- In Progress -->
+<div class="col-xl-3 col-md-6">
+<div class="stat-card d-flex justify-content-between align-items-center"
+style="background:linear-gradient(135deg,#4facfe,#00f2fe)">
+
+<div>
+<p class="mb-1">In Progress</p>
+<div class="stat-value">{{ in_progress }}</div>
+</div>
+
+<div class="bg-white bg-opacity-25 rounded-circle p-3">
+<i class="fas fa-spinner"></i>
+</div>
+
+</div>
+</div>
+
+
+<!-- Completed -->
+<div class="col-xl-3 col-md-6">
+<div class="stat-card d-flex justify-content-between align-items-center"
+style="background:linear-gradient(135deg,#43e97b,#38f9d7)">
+
+<div>
+<p class="mb-1">Completed</p>
+<div class="stat-value">{{ completed }}</div>
+</div>
+
+<div class="bg-white bg-opacity-25 rounded-circle p-3">
+<i class="fas fa-check-circle"></i>
+</div>
+
+</div>
+</div>
+
+</div>
+
+
+
+<!-- ===================================================== -->
+<!-- MAIN CONTENT -->
+<!-- ===================================================== -->
+
+<div class="row g-4">
+
+<!-- ===================================================== -->
+<!-- RECENT PROJECTS -->
+<!-- ===================================================== -->
+
+<div class="col-lg-8">
+
+<div class="card">
+
+<div class="card-header bg-white border-0">
+<h5 class="mb-0 fw-semibold">
+<i class="fas fa-folder-open me-2 text-primary"></i>
+Recent Projects
+</h5>
+</div>
+
+<div class="card-body">
+
+{% if projects %}
+
+<div class="row g-3">
+
+{% for project in projects[:4] %}
+
+<div class="col-md-6">
+
+<div class="card h-100 shadow-sm border-0">
+
+<div class="card-body">
+
+<h6 class="fw-bold">{{ project.name }}</h6>
+
+<p class="text-muted small mb-3">
+{{ project.description[:100] }}
+{% if project.description|length > 100 %}...{% endif %}
+</p>
+
+
+<!-- Progress -->
+
+<div class="mb-3">
+
+<div class="d-flex justify-content-between small mb-1">
+<span>Progress</span>
+<span>{{ project.progress }}%</span>
+</div>
+
+<div class="progress">
+<div class="progress-bar"
+style="width:{{ project.progress }}%">
+</div>
+</div>
+
+</div>
+
+
+<!-- Footer -->
+
+<div class="d-flex justify-content-between align-items-center">
+
+<small class="text-muted">
+<i class="far fa-calendar me-1"></i>
+{{ project.deadline_formatted if project.deadline_formatted else 'No deadline' }}
+</small>
+
+<a href="{{ url_for('view_project', project_id=project.id) }}"
+class="btn btn-sm btn-outline-primary">
+
+View
+<i class="fas fa-arrow-right ms-1"></i>
+
+</a>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+{% endfor %}
+
+</div>
+
+
+{% if projects|length > 4 %}
+
+<div class="text-center mt-4">
+
+<a href="{{ url_for('projects') }}"
+class="btn btn-outline-primary">
+
+View All Projects
+<i class="fas fa-arrow-right ms-2"></i>
+
+</a>
+
+</div>
+
+{% endif %}
+
+{% else %}
+
+<div class="text-center text-muted py-4">
+
+<i class="fas fa-folder-open fa-2x mb-3"></i>
+<p>No projects yet</p>
+
+<a href="{{ url_for('new_project') }}"
+class="btn btn-primary">
+
+Create Your First Project
+
+</a>
+
+</div>
+
+{% endif %}
+
+</div>
+
+</div>
+
+</div>
+
+
+
+<!-- ===================================================== -->
+<!-- RECENT TASKS -->
+<!-- ===================================================== -->
+
+<div class="col-lg-4">
+
+<div class="card">
+
+<div class="card-header bg-white border-0">
+
+<h5 class="mb-0 fw-semibold">
+
+<i class="fas fa-tasks me-2 text-primary"></i>
+Recent Tasks
+
+</h5>
+
+</div>
+
+<div class="card-body">
+
+{% if recent_tasks %}
+
+{% for task in recent_tasks %}
+
+<div class="task-card mb-3 {{ task.priority|lower }}">
+
+<div class="d-flex justify-content-between mb-2">
+
+<strong>{{ task.title }}</strong>
+
+<span class="priority-badge priority-{{ task.priority|lower }}">
+{{ task.priority }}
+</span>
+
+</div>
+
+<p class="small text-muted mb-2">
+<i class="fas fa-folder me-1"></i>
+{{ task.project_name }}
+</p>
+
+<div class="d-flex justify-content-between align-items-center">
+
+<span class="badge bg-{{ 'secondary' if task.status == 'To Do' else 'primary' if task.status == 'In Progress' else 'success' }}">
+{{ task.status }}
+</span>
+
+<small class="text-muted">
+
+<i class="far fa-clock me-1"></i>
+{{ task.deadline_formatted if task.deadline_formatted else 'No deadline' }}
+
+</small>
+
+</div>
+
+</div>
+
+{% endfor %}
+
+{% else %}
+
+<div class="text-center text-muted py-4">
+
+<i class="fas fa-clipboard-list fa-2x mb-3"></i>
+
+<p>No tasks yet</p>
+
+</div>
+
+{% endif %}
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
 {% endblock %}
